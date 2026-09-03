@@ -1,0 +1,322 @@
+{% extends "base.html" %}
+
+{% block title %}Search Results - AI Resume Scanner{% endblock %}
+
+{% block content %}
+<div class="row mb-4">
+    <div class="col-12">
+        <h1 class="display-5 fw-bold text-primary">
+            <i class="fas fa-search me-3"></i>Search Results
+        </h1>
+        <p class="lead">
+            {% if query %}
+                Found {{ resumes|length }} resume(s) matching "{{ query }}"
+            {% else %}
+                Showing {{ resumes|length }} resume(s)
+            {% endif %}
+        </p>
+    </div>
+</div>
+
+<!-- Search Form -->
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-body">
+                <form method="GET" action="{{ url_for('search_resumes') }}" class="row g-3">
+                    <div class="col-md-4">
+                        <label for="q" class="form-label">Search Query</label>
+                        <input type="text" class="form-control" id="q" name="q" 
+                               placeholder="Search by skills, content, or keywords" 
+                               value="{{ request.args.get('q', '') }}">
+                    </div>
+                    <div class="col-md-3">
+                        <label for="skill" class="form-label">Skill Filter</label>
+                        <select class="form-select" id="skill" name="skill">
+                            <option value="">Any Skill</option>
+                            <option value="python" {{ 'selected' if request.args.get('skill') == 'python' }}>Python</option>
+                            <option value="java" {{ 'selected' if request.args.get('skill') == 'java' }}>Java</option>
+                            <option value="javascript" {{ 'selected' if request.args.get('skill') == 'javascript' }}>JavaScript</option>
+                            <option value="react" {{ 'selected' if request.args.get('skill') == 'react' }}>React</option>
+                            <option value="aws" {{ 'selected' if request.args.get('skill') == 'aws' }}>AWS</option>
+                            <option value="docker" {{ 'selected' if request.args.get('skill') == 'docker' }}>Docker</option>
+                        </select>
+                    </div>
+                    <div class="col-md-3">
+                        <label for="experience" class="form-label">Experience Level</label>
+                        <select class="form-select" id="experience" name="experience">
+                            <option value="">Any Level</option>
+                            <option value="entry" {{ 'selected' if request.args.get('experience') == 'entry' }}>Entry Level</option>
+                            <option value="mid" {{ 'selected' if request.args.get('experience') == 'mid' }}>Mid Level</option>
+                            <option value="senior" {{ 'selected' if request.args.get('experience') == 'senior' }}>Senior Level</option>
+                        </select>
+                    </div>
+                    <div class="col-md-2">
+                        <label class="form-label">&nbsp;</label>
+                        <div class="d-grid">
+                            <button type="submit" class="btn btn-primary">
+                                <i class="fas fa-search me-2"></i>Search
+                            </button>
+                        </div>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Results -->
+<div class="row">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h5 class="card-title mb-0">
+                    <i class="fas fa-list me-2"></i>Search Results ({{ resumes|length }})
+                </h5>
+                <div class="btn-group" role="group">
+                    <button type="button" class="btn btn-outline-secondary btn-sm" onclick="selectAll()">
+                        <i class="fas fa-check-square me-1"></i>Select All
+                    </button>
+                    <button type="button" class="btn btn-outline-secondary btn-sm" onclick="deselectAll()">
+                        <i class="fas fa-square me-1"></i>Deselect All
+                    </button>
+                </div>
+            </div>
+            <div class="card-body">
+                {% if resumes %}
+                <form id="searchForm" method="POST" action="{{ url_for('shortlist_resumes') }}">
+                    <div class="table-responsive">
+                        <table class="table table-hover">
+                            <thead>
+                                <tr>
+                                    <th width="50">
+                                        <input type="checkbox" id="selectAllCheckbox" class="form-check-input">
+                                    </th>
+                                    <th>Relevance</th>
+                                    <th>ID</th>
+                                    <th>Filename</th>
+                                    <th>Score</th>
+                                    <th>Experience</th>
+                                    <th>Top Skills</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for resume in resumes %}
+                                <tr>
+                                    <td>
+                                        <input type="checkbox" name="resume_ids" value="{{ resume.id }}" 
+                                               class="form-check-input resume-checkbox">
+                                    </td>
+                                    <td>
+                                        <span class="badge bg-{{ 'success' if resume.search_score >= 30 else 'warning' if resume.search_score >= 15 else 'info' }}">
+                                            {{ resume.search_score }}
+                                        </span>
+                                    </td>
+                                    <td>{{ resume.id }}</td>
+                                    <td>
+                                        <strong>{{ resume.filename }}</strong>
+                                        {% if resume.status == 'inactive' %}
+                                            <span class="badge bg-secondary ms-2">Inactive</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        <div class="score-circle score-{{ 'excellent' if resume.analysis_result.overall_score >= 80 else 'good' if resume.analysis_result.overall_score >= 60 else 'average' }}">
+                                            {{ resume.analysis_result.overall_score }}
+                                        </div>
+                                    </td>
+                                    <td>
+                                        <span class="experience-badge experience-{{ resume.analysis_result.experience_level }}">
+                                            {{ resume.analysis_result.experience_level.title() }}
+                                        </span>
+                                    </td>
+                                    <td>
+                                        {% set skills = resume.analysis_result.skills %}
+                                        {% if skills %}
+                                            {% for category, skill_list in skills.items() %}
+                                                {% for skill in skill_list[:2] %}
+                                                    <span class="skill-tag">{{ skill }}</span>
+                                                {% endfor %}
+                                            {% endfor %}
+                                        {% else %}
+                                            <span class="text-muted">No skills</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        <div class="btn-group" role="group">
+                                            <a href="{{ url_for('view_resume', resume_id=resume.id) }}" 
+                                               class="btn btn-sm btn-outline-primary" title="View Details">
+                                                <i class="fas fa-eye"></i>
+                                            </a>
+                                            <button type="button" class="btn btn-sm btn-outline-warning" 
+                                                    onclick="addToShortlist({{ resume.id }})" title="Add to Shortlist">
+                                                <i class="fas fa-star"></i>
+                                            </button>
+                                        </div>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                    
+                    <!-- Bulk Actions -->
+                    <div class="row mt-4">
+                        <div class="col-md-6">
+                            <div class="input-group">
+                                <input type="text" class="form-control" id="shortlistName" 
+                                       placeholder="Enter shortlist name" required>
+                                <button type="submit" class="btn btn-warning">
+                                    <i class="fas fa-star me-2"></i>Create Shortlist
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </form>
+                {% else %}
+                <div class="text-center py-5">
+                    <i class="fas fa-search fa-4x text-muted mb-4"></i>
+                    <h4 class="text-muted">No results found</h4>
+                    <p class="text-muted mb-4">
+                        {% if query or request.args.get('skill') or request.args.get('experience') %}
+                            No resumes match your search criteria. Try adjusting your search terms or filters.
+                        {% else %}
+                            No resumes available for search.
+                        {% endif %}
+                    </p>
+                    <div class="d-flex justify-content-center gap-3">
+                        <a href="{{ url_for('index') }}" class="btn btn-primary">
+                            <i class="fas fa-upload me-2"></i>Upload Resume
+                        </a>
+                        <a href="{{ url_for('list_resumes') }}" class="btn btn-outline-secondary">
+                            <i class="fas fa-list me-2"></i>View All Resumes
+                        </a>
+                    </div>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Shortlist Modal -->
+<div class="modal fade" id="shortlistModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Add to Shortlist</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <form id="shortlistForm">
+                    <div class="mb-3">
+                        <label for="shortlistSelect" class="form-label">Select Shortlist</label>
+                        <select class="form-select" id="shortlistSelect" required>
+                            <option value="">Choose a shortlist...</option>
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label for="newShortlistName" class="form-label">Or Create New</label>
+                        <input type="text" class="form-control" id="newShortlistName" 
+                               placeholder="Enter new shortlist name">
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-primary" onclick="confirmAddToShortlist()">Add</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+let selectedResumeId = null;
+
+$(document).ready(function() {
+    // Select all checkbox functionality
+    $('#selectAllCheckbox').change(function() {
+        $('.resume-checkbox').prop('checked', this.checked);
+    });
+    
+    // Individual checkbox change
+    $('.resume-checkbox').change(function() {
+        if (!this.checked) {
+            $('#selectAllCheckbox').prop('checked', false);
+        } else {
+            // Check if all are selected
+            const totalCheckboxes = $('.resume-checkbox').length;
+            const checkedCheckboxes = $('.resume-checkbox:checked').length;
+            if (totalCheckboxes === checkedCheckboxes) {
+                $('#selectAllCheckbox').prop('checked', true);
+            }
+        }
+    });
+    
+    // Load shortlists for modal
+    loadShortlists();
+});
+
+function selectAll() {
+    $('.resume-checkbox').prop('checked', true);
+    $('#selectAllCheckbox').prop('checked', true);
+}
+
+function deselectAll() {
+    $('.resume-checkbox').prop('checked', false);
+    $('#selectAllCheckbox').prop('checked', false);
+}
+
+function addToShortlist(resumeId) {
+    selectedResumeId = resumeId;
+    $('#shortlistModal').modal('show');
+}
+
+function confirmAddToShortlist() {
+    const shortlistId = $('#shortlistSelect').val();
+    const newShortlistName = $('#newShortlistName').val();
+    
+    if (!shortlistId && !newShortlistName) {
+        alert('Please select a shortlist or enter a new shortlist name');
+        return;
+    }
+    
+    if (newShortlistName) {
+        // Create new shortlist
+        $.post('/shortlist', {
+            shortlist_name: newShortlistName,
+            resume_ids: [selectedResumeId]
+        }, function(response) {
+            $('#shortlistModal').modal('hide');
+            alert('Shortlist created and resume added successfully!');
+        });
+    } else {
+        // Add to existing shortlist
+        $.post('/api/shortlist/' + shortlistId + '/add_resume', {
+            resume_id: selectedResumeId
+        }, function(response) {
+            $('#shortlistModal').modal('hide');
+            alert('Resume added to shortlist successfully!');
+        });
+    }
+}
+
+function loadShortlists() {
+    $.get('/api/shortlists', function(data) {
+        const select = $('#shortlistSelect');
+        select.empty();
+        select.append('<option value="">Choose a shortlist...</option>');
+        
+        data.forEach(function(shortlist) {
+            select.append(`<option value="${shortlist.id}">${shortlist.name}</option>`);
+        });
+    });
+}
+</script>
+{% endblock %}
+
+
+
+
